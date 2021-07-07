@@ -1,0 +1,6 @@
+my_openssl.cnf
+*.cnf
+*.pem
+*.crt
+*.key
+*.srl
