@@ -86,18 +86,23 @@ Therefore, there is no other unique configuration to select creation of a CA cer
 
 ## 3 - Certificate host specific configuration
 
-The script will next check existence of certificate files from a list of
+The script will check existence of certificate files from a list of
 desired certificates located at the end of the make-certs.sh file.
 If a certificate file is not found, the certificate and key files will
 be created by the script using openssl bash statements.
 It is not necessary to disable configuration lines for certificates
 that exist previously as they will be skipped.
 
-Each configuration is is a series of bash statements on a single line separated
+Each configuration is a series of bash statements on a single line separated
 by semicolon (;) symbols. The "reset" statement is a bash function to remove
 previous configuration. Several environment (env) variables are defined.
 The statement "create_cert_and_key" located at the right end of the line
 is a bash function used to create the certificates based on the env variable contents.
+
+```bash
+reset ; TYPE="server" ; TLS_HOST="server1" ; TLS_IP1="127.0.0.1"    ; TLS_IP2="::1" ; create_cert_and_key
+reset ; TYPE="client" ; TLS_HOST="client2" ; TLS_IP1="127.0.0.1"    ; TLS_IP2="::1" ; create_cert_and_key
+```
 
 ### 3a - TYPE
 
@@ -105,7 +110,8 @@ The env variable TYPE can have 3 values "client", "server", "both". This determi
 if the certificate should be a server or client TLS certificate. If the "both" designation
 is used, a certificate is created that can be used as both a client and server
 certificate. This is useful when chaining connections from one IOT device to the next
-such as a raspberry pi containing a web server with reverse proxy.
+such as a raspberry pi containing an API web server with reverse proxy connection
+to a second API web server.
 
 ### 3B - TLS_HOST
 
@@ -127,10 +133,10 @@ a web page's TLS certificate has a valid CA issuer certificate signature and
 the IP address in the URL matches the IP address value in the
 server TLS certificate v3 SAN.
 
-Several optional env variable names may be used for for host verification:
+Several optional env variable names may be used to specify host IP addresses:
 TLS_IP1, TLS_IP2, TLS_IP3, TLS_IP4, TLS_DNS1, TLS_DNS2. The script
-in this repository contains several examples. The format of the env variables
-should be shown next. Note there are no space characters by the
+in this repository contains several examples. The env variables syntax
+should follow the this example. Note there are no space characters by the
 equals sign.
 
 ```
@@ -144,7 +150,7 @@ This completes the configuration.
 # Removal of previous certificates
 
 If you want to erase all the certificates and start over, the
-following rm commands will erase all previous certificates.
+following rm command will erase all previous certificates.
 
 ```bash
 rm -v *.crt *.key *.srl
@@ -198,7 +204,7 @@ openssl x509 -in CA.crt -noout -text
 ```
 
 The x509 command will display the certificate contents, you should check
-that the Organization name appears correctly. You should also
+that the organization name appears correctly. You should also
 note the expiration date. You will need to generate
 new certificates before it expires.
 
@@ -276,9 +282,11 @@ The following tests can be run on a single computer by opening two terminals sid
 
 ### Encryption without identity verification.
 
-The following command will start the s_server in one terminal.
+The following command will start s_server in one terminal.
 The server certificate and private key will used by s_server to negotiate the encrypted connection.
 These examples can be stopped by pressing ctrl-C.
+
+Server:
 
 ```bash
 openssl s_server -port 8000 -cert server1.crt -key server1.key
@@ -291,6 +299,8 @@ so an error will be expected.
 It is up to a client program to check for certificate errors and disconnect accordingly.
 In this example, the two terminal windows will remain connected, despite the certificate error.
 
+Client:
+
 ```bash
 openssl s_client -connect 127.0.0.1:8000
 ```
@@ -299,11 +309,13 @@ If all goes well, the two terminals will be connected over a SSL/TLS encrypted c
 However, s_client will have been unable to verify the identity of the server, so an error is shown.
 Looking at the last few lines, you will see
 `Verify return code: 21 (unable to verify the first certificate)`.
-Despite the error, try typing in each terminal to see the content echo to the other.
+Despite the error, try typing in each terminal and the content will be echoed to the other.
 
 ### Add verification of the server certificate
 
 Stop and restart the s_server using the same command previously used.
+
+Server:
 
 ```bash
 openssl s_server -port 8000 -cert server1.crt -key server1.key
@@ -314,6 +326,8 @@ In this case, during the TLS negotiation, the s_server certificate (server1.crt)
 sent to the s_client where the signature in the server1.crt will be checked for validity
 using the CA cert (CA.crt) present in the client.
 
+Client:
+
 ```bash
 openssl s_client -CAfile CA.crt -connect 127.0.0.1:8000
 ```
@@ -321,15 +335,16 @@ openssl s_client -CAfile CA.crt -connect 127.0.0.1:8000
 Upon successful connection, s_client should show `Verify return code: 0 (ok)`
 located a few lines up from the bottom of the screen. The zero return code indicates that
 the signatures on the server certificate were verified using the CA certificate.
-Try typing in each terminal to see the content echo to the other.
+Try typing in each terminal and the content will be echoed to the other.
 
 ### Add verification of the client certificate
 
 In the previous example, the client used the CA.crt certificate to very the certificate signature of the
 server. In the reverse direction, the previous example had no check on the identity
 of the client.
-In the previous example, the verification was performed on the
-client end. In the next example using client authentication, the verification is performed on the server end.
+In the previous example, the server identification verification was performed on the
+client end. In the next example using client authentication, the verification of the
+client identity is performed on the server end.
 
 To do this, the CA certificate (CA.crt) must be added to the command used to start the
 s_server program. In total 3 files are specified.
@@ -338,12 +353,16 @@ Stop and restart the s_server with the following command.
 Note the upper case "V" in "-Verify". The "Verify" switch makes it sending of a
 valid client certificate mandatory.
 
+Server:
+
 ```bash
 openssl s_server -port 8000 -CAfile CA.crt -cert server1.crt -key server1.key -Verify 1
 ```
 
 First, lets start s_client without client certificates and confirm the server will reject
 the client connection. Start the client with the following command.
+
+Client:
 
 ```bash
 openssl s_client -CAfile CA.crt -connect 127.0.0.1:8000
@@ -356,12 +375,16 @@ This is the expected result.
 
 Next, stop and restart the server with the same command.
 
+Server:
+
 ```bash
 openssl s_server -port 8000 -CAfile CA.crt -cert server1.crt -key server1.key -Verify 1
 ```
 
 Add the client certificate and private key to the s_client command.
 A total of 3 files are specified as follows:
+
+Client:
 
 ```bash
 openssl s_client -CAfile CA.crt -cert client2.crt -key client2.key -connect 127.0.0.1:8000
@@ -371,6 +394,8 @@ In this case the s_client should display the message: "Verify return code: 0 (ok
 The zero result indicated that a 2 way verification was successful. The s_client sent
 the client certificate (client2.crt) to the s_server program which in turn used the
 CA certificate (CA.crt) to verify the signature on the client certificate client2.crt.
+
+Testing of two way certificate verification is now complete.
 
 ### IPV6
 
@@ -389,6 +414,8 @@ It may be necessary to wrap the IPV6 address in square brackets.
 If you want to test using IPV6 with openssl using s_client, it is necessary to wrap the
 IPV6 address in brackets as follows.
 
+Server and Client:
+
 ```
 openssl s_server -port 8000 -CAfile CA.crt -cert server1.crt -key server1.key -Verify 1
 openssl s_client -CAfile CA.crt -cert client2.crt -key client2.key -connect [::1]:8000
@@ -399,12 +426,14 @@ Response: `Verify return code: 0 (ok)`
 
 The previous testing involved verification of valid certificates and valid digital signatures.
 It did not include comparison of the actual IP address to the address specified in the v3 SAN.
-It is up to the client program to check for this match, then a client may choose to disconnect
+It is up to the client program to check for this match. A client program may choose to disconnect
 or ignore the mis-match error. In the above examples s_client did not include this check.
-If you are curious and want to try checking for a mismatch, you can use curl.
+If you are curious and want to try checking for a mismatch, you can use curl program.
 
-In this case, client certificate verification is not inovolved, so the "-Verify 1" can
+In this case, client certificate verification is not involved, so the "-Verify 1" can
 be removed from the server. Start the server with the following command.
+
+Server:
 
 ```bash
 openssl s_server -port 8000 -CAfile CA.crt -cert server1.crt -key server1.key
@@ -412,6 +441,8 @@ openssl s_server -port 8000 -CAfile CA.crt -cert server1.crt -key server1.key
 
 Similar to above, first try using curl without the CA certificate. An error is expected.
 Run curl with the following command:
+
+Client:
 
 ```bash
 curl https://127.0.0.1:8000
@@ -424,7 +455,10 @@ curl: (60) SSL certificate problem: self signed certificate in certificate chain
 ```
 
 Although the error could be ignored by adding the switch "--insecure" to the curl command,
-instead, we will add the CA certificate. Run curl with the following command:
+instead, we will add the CA certificate.
+Restart the server and then run curl with the following command:
+
+Client:
 
 ```bash
 curl --cacert CA.crt https://127.0.0.1:8000
@@ -432,10 +466,12 @@ curl --cacert CA.crt https://127.0.0.1:8000
 
 Curl expects a web page to be returned. The s_client opens a socket, but does not respond
 with any data. Therefore curl will hang, waiting for a web page to be sent. This is the normal result.
-Note that no errors are printed. Stop curl by pressing ctrl-C.
+The main point to observe here is that no errors are printed. Stop curl by pressing ctrl-C.
 
 Now, create an IP address mismatch. In the make-certs.sh script, change the number of the
-localhost IP address in the server1 definition. The new line will look like this.
+localhost IP address from 127 to 128 in the server1 definition. The new line will look like this.
+
+make-certs.sh:
 
 ```
 reset ; TYPE="server" ; TLS_HOST="server1" ; TLS_IP1="128.0.0.1"    ; TLS_IP2="::1" ; create_cert_and_key
@@ -449,12 +485,16 @@ rm -v *.crt *.key *.srl
 ```
 Restart s_server by typing:
 
+Server:
+
 ```bash
 openssl s_server -port 8000 -CAfile CA.crt -cert server1.crt -key server1.key
 ```
 
 Now, try using curl to load the page using the CA file. Previously, no error occurred,
 and curl was hung waiting for a server reply. Now type the same curl command:
+
+Client:
 
 ```bash
 curl --cacert CA.crt https://127.0.0.1:8000
