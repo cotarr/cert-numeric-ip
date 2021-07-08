@@ -27,12 +27,12 @@
 # See README.md for instructions
 #
 # This will only create certificates and keys that do not exist.
-# At the end of the file is a list of host/ip lines.
+# At the end of the file is a list of user editable host/ip definitions.
 #
-# 1) Copy and edit openssl.conf as described
+# 1) Copy and edit openssl.cnf to my_openssl.cnf as described
 # 2) Edit script to provide TLS Organization name (any is ok)
-# 3) Edit script at the bottom to add new certificate for each IP address
-# 4) Before running, export CA password to unix environment variables
+# 3) Edit script at the bottom to add a new certificate for each IP address
+# 4) Before running, export CA_KEY_PW password to unix environment variables
 #
 # ----------------------------------------------------------------
 

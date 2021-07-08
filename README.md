@@ -2,23 +2,33 @@
 
 Bash script to create TLS certificates with numeric IP addresses in V3 Subject Alternative Name.
 
-### Platform
+### Requirements
 
-Written under Debian 10 bash shell using openssl 1.1.1d. Other OS not tested.
+* openssl
+* linux
 
-### Used on
+Written using openssl 1.1.1d using Debian 10. Other OS not tested.
 
-This is a script that I have used for several years to interconnect raspberry pi IOT devices.
-In this case, devices are known by URL with numeric addresses, such as "https://192.168.1.99".
-When the numeric IP address is added to the certificate,
-SSL/TLS allows host name IP address verification. In this case the IP address in the certificate
-V3 Subject Alternate Name must match the actual IP address. In addition to the IP address,
-the certificates must validate the certificate digital signatures against a common Certificate
-Authority (CA) certificate.
+### Used For...
 
-Additionally, client certificates can be used by the server to provide two way TLS
-certificate verification. In client authentication, the server can verify the client
-identity based on digital signatures against a common CA certificate.
+This is a script that I have used for several years to make Raspberry Pi TLS certificates for
+IOT devices on a home network.
+I prefer to interconnect Raspberry Pi web API connections using two way, client and server,
+TLS certificate verification. In this configuration, each API web server will only
+accept TLS client connections from other devices with a valid TLS client certificate.
+
+To make IOT device networking simple, each device is referred to by a numeric IP address
+such as "192.168.1.99" rather than a domain name like "device123.example.com".
+However, many TLS certificate tutorials or toolbox scripts are limited to creation of
+certificates for domain names rather than numeric addresses.
+After some experimenting, several openssl commands were evolved that can produce
+functional TLS certificates for use with numeric address.
+
+With this approach, one self signed CA certificate can be created as an authority
+to digitally sign or verify signatures for all client and server certificates.
+If the CA certificate is added to a web browser, it will allow access to IOT devices
+without certificate warning,
+provided the IP address of each server matches the certificate SAN, and the certificates are valid.
 
 # Installation
 
@@ -27,7 +37,7 @@ git clone git@github.com:cotarr/cert-numeric-ip.git
 cd cert-numeric-ip
 ```
 
-Check the permissions of the make-certs.sh file. If they are not executable,
+Check the permissions of the make-certs.sh file. If it is not executable,
 you may change by typing:
 
 ```bash
@@ -43,17 +53,18 @@ as shown at the end of this README. The example addresses are set to the local h
 
 ## 1 - openssl configuration file
 
-A modified copy of openssl.cnf is needed. In other linux distributions, openssl.cnf
-may be in an alternate location.
+Two minor changes are needed in a modified copy of openssl.cnf.
+In other linux distributions, openssl.cnf may be in an alternate location.
 On Debian linux, the system openssl configuration file can be
-copied to a new file named "my_openssl.cnf" with the following command.
+copied to "my_openssl.cnf" with the following command.
 
 ```
 cp -v /etc/ssl/openssl.cnf my_openssl.cnf"
 ```
 
 In the file "my_openssl.cnf", search for the string: "[ v3_ca ]".
-In the v3_ca section, append "pathlen:0" separated by a comma, without space. The line should look like this:
+
+In the v3_ca section, find the string "basicConstraints = critical". Append "pathlen:0" separated by a comma, without space. The line should look like this:
 
 ```
 basicConstraints = critical,CA:true,pathlen:0
@@ -72,7 +83,7 @@ Enter a new unique value for the organization name.
 
 In the case where the CA certificate may be added to a web browser
 as a trusted authority, the custom CA certificate
-will be listed by the Organization name when managing the list of
+will be listed by the organization name when managing the list of
 installed browser CA certificates.
 
 ```
@@ -104,7 +115,7 @@ reset ; TYPE="server" ; TLS_HOST="server1" ; TLS_IP1="127.0.0.1"    ; TLS_IP2=":
 reset ; TYPE="client" ; TLS_HOST="client2" ; TLS_IP1="127.0.0.1"    ; TLS_IP2="::1" ; create_cert_and_key
 ```
 
-### 3a - TYPE
+### 3A - TYPE
 
 The env variable TYPE can have 3 values "client", "server", "both". This determines
 if the certificate should be a server or client TLS certificate. If the "both" designation
@@ -196,17 +207,16 @@ client2-fullchain.crt
 
 # Viewing certificate contents
 
-The following openssl command will decode and display the
+The following openssl x509 command will decode and display the
 CA certificate contents.
 
 ```bash
 openssl x509 -in CA.crt -noout -text
 ```
 
-The x509 command will display the certificate contents, you should check
-that the organization name appears correctly. You should also
-note the expiration date. You will need to generate
-new certificates before it expires.
+You should check that the organization name appears correctly.
+You should also note the expiration date.
+You will need to generate new certificates before it expires.
 
 ```
 Issuer: O = My Organization Name, CN = My Organization Name-CA
@@ -220,7 +230,7 @@ X509v3 Key Usage:
     Certificate Sign, CRL Sign
 ```
 
-Each server certificate can be decoded and displayed as follows:
+Each IOT server certificate can be decoded and displayed with the same command:
 
 ```bash
 openssl x509 -in server1.crt -noout -text
@@ -294,8 +304,9 @@ openssl s_server -port 8000 -cert server1.crt -key server1.key
 
 In a second terminal, start the s_client program. In this case, no certificates are specified.
 The s_client will use the default TLS certificates provided by the operating system.
-Without CA certificate, verification of the server certificate signature is not possible,
-so an error will be expected.
+Without CA certificate, verification of the server certificate signature is not possible.
+Therefore, an error will be expected.
+
 It is up to a client program to check for certificate errors and disconnect accordingly.
 In this example, the two terminal windows will remain connected, despite the certificate error.
 
@@ -309,7 +320,7 @@ If all goes well, the two terminals will be connected over a SSL/TLS encrypted c
 However, s_client will have been unable to verify the identity of the server, so an error is shown.
 Looking at the last few lines, you will see
 `Verify return code: 21 (unable to verify the first certificate)`.
-Despite the error, try typing in each terminal and the content will be echoed to the other.
+Despite the error, try typing in each terminal and the content will be echoed to the other terminal.
 
 ### Add verification of the server certificate
 
@@ -318,7 +329,7 @@ Stop and restart the s_server using the same command previously used.
 Server:
 
 ```bash
-openssl s_server -port 8000 -cert server1.crt -key server1.key
+  openssl s_server -port 8000 -cert server1.crt -key server1.key
 ```
 
 In the other terminal, add the file name of the Certificate Authority (CA) file as shown.
@@ -335,7 +346,7 @@ openssl s_client -CAfile CA.crt -connect 127.0.0.1:8000
 Upon successful connection, s_client should show `Verify return code: 0 (ok)`
 located a few lines up from the bottom of the screen. The zero return code indicates that
 the signatures on the server certificate were verified using the CA certificate.
-Try typing in each terminal and the content will be echoed to the other.
+Try typing in each terminal and the content will be echoed to the other terminal.
 
 ### Add verification of the client certificate
 
@@ -350,8 +361,11 @@ To do this, the CA certificate (CA.crt) must be added to the command used to sta
 s_server program. In total 3 files are specified.
 Stop and restart the s_server with the following command.
 
-Note the upper case "V" in "-Verify". The "Verify" switch makes it sending of a
-valid client certificate mandatory.
+Add the switch "-Verify 1".
+This switch tells the server to request client certificate.
+The upper case V indicates the request is mandatory.
+
+Note the upper case "V" in "-Verify".
 
 Server:
 
@@ -414,12 +428,17 @@ It may be necessary to wrap the IPV6 address in square brackets.
 If you want to test using IPV6 with openssl using s_client, it is necessary to wrap the
 IPV6 address in brackets as follows.
 
-Server and Client:
-
-```
+Server:
+```bash
 openssl s_server -port 8000 -CAfile CA.crt -cert server1.crt -key server1.key -Verify 1
+```
+
+Client:
+
+```bash
 openssl s_client -CAfile CA.crt -cert client2.crt -key client2.key -connect [::1]:8000
 ```
+
 Response: `Verify return code: 0 (ok)`
 
 ### Hostname Verification
@@ -427,16 +446,16 @@ Response: `Verify return code: 0 (ok)`
 The previous testing involved verification of valid certificates and valid digital signatures.
 It did not include comparison of the actual IP address to the address specified in the v3 SAN.
 It is up to the client program to check for this match. A client program may choose to disconnect
-or ignore the mis-match error. In the above examples s_client did not include this check.
-If you are curious and want to try checking for a mismatch, you can use curl program.
+or ignore the identity mis-match error. In the above examples s_client did not include this check.
+If you are curious and want to try checking for a mismatch, you can use the "curl" command.
 
-In this case, client certificate verification is not involved, so the "-Verify 1" can
-be removed from the server. Start the server with the following command.
+In this case, client certificate verification is not involved, so the CA certificate and
+the Verify switch can be removed from the server. Start the server with the following command.
 
 Server:
 
 ```bash
-openssl s_server -port 8000 -CAfile CA.crt -cert server1.crt -key server1.key
+openssl s_server -port 8000 -cert server1.crt -key server1.key
 ```
 
 Similar to above, first try using curl without the CA certificate. An error is expected.
@@ -448,14 +467,16 @@ Client:
 curl https://127.0.0.1:8000
 ```
 
-curl returned the following error, an expected result.
+curl returned the following error, the expected result.
 
 ```
 curl: (60) SSL certificate problem: self signed certificate in certificate chain
 ```
 
-Although the error could be ignored by adding the switch "--insecure" to the curl command,
-instead, we will add the CA certificate.
+This error could be ignored by adding the switch --insecure to the curl command,
+such as `curl --insecure  https://127.0.0.1:8000`.
+However, this simply ignores the certificate error, which is not secure.
+Instead, we will add the CA certificate to the curl command.
 Restart the server and then run curl with the following command:
 
 Client:
@@ -488,7 +509,7 @@ Restart s_server by typing:
 Server:
 
 ```bash
-openssl s_server -port 8000 -CAfile CA.crt -cert server1.crt -key server1.key
+openssl s_server -port 8000 -cert server1.crt -key server1.key
 ```
 
 Now, try using curl to load the page using the CA file. Previously, no error occurred,
