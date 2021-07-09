@@ -32,6 +32,19 @@ provided the IP address of each server matches the certificate SAN, and the cert
 
 # Installation
 
+### Clipboard from github
+
+Since this is a bash script, the simplest way to copy github to clipboard.
+
+* Create an empty folder
+* Open new file "make-certs.sh" in editor
+* Copy/paste contents of make-certs.sh from this github repository
+* Save file, and change permission to executable
+
+### Clone Repository
+
+If you would prefer to clone the repository...
+
 ```bash
 git clone git@github.com:cotarr/cert-numeric-ip.git
 cd cert-numeric-ip
